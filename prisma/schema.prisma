@@ -1,0 +1,527 @@
+// ============================================================
+//  RFQ Portal — Prisma schema (PostgreSQL)
+//  Normalized, UUID PKs, FK constraints, timestamps,
+//  soft deletes (deletedAt) where appropriate.
+//  Multi-tenant ready via Organization.
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- Enums ----------
+
+enum Role {
+  SALES // Admin
+  PRESALES // Presales + Sourcing share this login
+}
+
+enum RfqStatus {
+  NEW
+  ASSIGNED
+  PENDING
+  SUBMITTED
+  WON
+  LOST
+  CANCELLED
+}
+
+enum PendingWith {
+  SALES
+  PRESALES
+  SOURCING
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum CommentType {
+  INTERNAL // visible to Sales + Presales
+  SUPPLIER // visible to both
+}
+
+enum ActivityType {
+  CREATED
+  IMPORTED
+  FIELD_CHANGED
+  PENDING_WITH_CHANGED
+  STATUS_CHANGED
+  COMMENT_ADDED
+  ATTACHMENT_UPLOADED
+  SUPPLIER_RESPONSE
+  AI_RECOMMENDATION
+  ASSIGNED
+}
+
+// ---------- Tenancy & Identity ----------
+
+model Organization {
+  id        String   @id @default(uuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  users     User[]
+  rfqs      Rfq[]
+  partners  Partner[]
+  customers Customer[]
+  services  Service[]
+  settings  Setting[]
+  suppliers Supplier[]
+
+  @@map("organizations")
+}
+
+model User {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  email          String   @unique
+  name           String
+  passwordHash   String   @map("password_hash")
+  role           Role     @default(PRESALES)
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  assignedRfqs Rfq[]        @relation("AssignedTo")
+  comments     Comment[]
+  activities   Activity[]
+  auditLogs    AuditLog[]
+  notifications Notification[]
+
+  @@index([organizationId])
+  @@map("users")
+}
+
+// ---------- Reference / Knowledge base ----------
+
+model Partner {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  name           String
+  country        String?
+  services       String[] @default([])
+  email          String?
+  phone          String?
+  accountManager String?  @map("account_manager")
+  notes          String?
+  preferredSupplier Boolean @default(false) @map("preferred_supplier")
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
+
+  organization Organization     @relation(fields: [organizationId], references: [id])
+  contacts     PartnerContact[]
+  rfqs         Rfq[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+  @@map("partners")
+}
+
+model PartnerContact {
+  id        String   @id @default(uuid())
+  partnerId String   @map("partner_id")
+  name      String
+  email     String?
+  phone     String?
+  role      String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  partner Partner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@index([partnerId])
+  @@map("partner_contacts")
+}
+
+model Supplier {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  name           String
+  country        String?
+  footprint      String?  // free text / comma-separated regions
+  coverage       String?  // coverage description
+  countries      String[] @default([])
+  services       String[] @default([])
+  leadTimeDays   Int?     @map("lead_time_days")     // typical lead time
+  performanceScore Float? @map("performance_score")  // 0..100
+  reliabilityScore Float? @map("reliability_score")  // 0..100
+  responseTimeHours Float? @map("response_time_hours")
+  preferredContact String? @map("preferred_contact")
+  historicalPricing Json?  @map("historical_pricing")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
+
+  organization Organization      @relation(fields: [organizationId], references: [id])
+  contacts     SupplierContact[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+  @@map("suppliers")
+}
+
+model SupplierContact {
+  id         String   @id @default(uuid())
+  supplierId String   @map("supplier_id")
+  name       String
+  email      String?
+  phone      String?
+  role       String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@index([supplierId])
+  @@map("supplier_contacts")
+}
+
+model Customer {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  name           String
+  country        String?
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  rfqs         Rfq[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+  @@map("customers")
+}
+
+model Service {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  name           String
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+  @@map("services")
+}
+
+// ---------- Core RFQ ----------
+
+model Rfq {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  rfqNumber      String   @map("rfq_number")
+  title          String
+
+  partnerId  String?  @map("partner_id")
+  customerId String?  @map("customer_id")
+
+  // free-form mirror values (also kept on FK for editability)
+  partnerName  String? @map("partner_name")
+  customerName String? @map("customer_name")
+
+  status      RfqStatus   @default(NEW)
+  priority    Priority    @default(MEDIUM)
+  pendingWith PendingWith @default(SALES) @map("pending_with")
+
+  // Extracted / structured fields
+  services            String[] @default([])
+  capacity            String?
+  bandwidth           String?
+  locations           String[] @default([])
+  countries           String[] @default([])
+  opportunityNo       String?  @map("opportunity_no")
+  protection          String?
+  remarks             String?
+  specialInstructions String?  @map("special_instructions")
+
+  // Dates
+  requestDate          DateTime  @default(now()) @map("request_date")
+  expectedProposalDate DateTime? @map("expected_proposal_date")
+  deadline             DateTime? // = expectedProposalDate - 1 business day (derived, immutable)
+
+  // Delay accumulators in minutes (closed segments). Live segment computed on read.
+  salesDelayMins    Int @default(0) @map("sales_delay_mins")
+  presalesDelayMins Int @default(0) @map("presales_delay_mins")
+  sourcingDelayMins Int @default(0) @map("sourcing_delay_mins")
+
+  reasonForDelay String? @map("reason_for_delay")
+  aiOfferEnabled Boolean @default(false) @map("ai_offer_enabled")
+
+  assignedToId String? @map("assigned_to_id")
+
+  // Source email linkage
+  gmailMessageId String? @unique @map("gmail_message_id")
+  gmailThreadId  String? @map("gmail_thread_id")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  organization    Organization      @relation(fields: [organizationId], references: [id])
+  partner         Partner?          @relation(fields: [partnerId], references: [id])
+  customer        Customer?         @relation(fields: [customerId], references: [id])
+  assignedTo      User?             @relation("AssignedTo", fields: [assignedToId], references: [id])
+  comments        Comment[]
+  attachments     Attachment[]
+  activities      Activity[]
+  delayHistory    DelayHistory[]
+  statusHistory   StatusHistory[]
+  emailThreads    EmailThread[]
+  aiRecommendations AiRecommendation[]
+  quotations      Quotation[]
+
+  @@unique([organizationId, rfqNumber])
+  @@index([organizationId, status])
+  @@index([organizationId, pendingWith])
+  @@index([partnerId])
+  @@index([customerId])
+  @@index([deadline])
+  @@map("rfqs")
+}
+
+model Comment {
+  id        String      @id @default(uuid())
+  rfqId     String      @map("rfq_id")
+  authorId  String      @map("author_id")
+  type      CommentType @default(INTERNAL)
+  body      String
+  createdAt DateTime    @default(now()) @map("created_at")
+  deletedAt DateTime?   @map("deleted_at")
+
+  rfq    Rfq  @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  author User @relation(fields: [authorId], references: [id])
+
+  @@index([rfqId])
+  @@map("comments")
+}
+
+model Attachment {
+  id         String   @id @default(uuid())
+  rfqId      String   @map("rfq_id")
+  fileName   String   @map("file_name")
+  mimeType   String   @map("mime_type")
+  sizeBytes  Int      @map("size_bytes")
+  storageKey String   @map("storage_key") // object-storage key
+  extractedText String? @map("extracted_text") // for AI context
+  uploadedById String? @map("uploaded_by_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+  deletedAt  DateTime? @map("deleted_at")
+
+  rfq Rfq @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+
+  @@index([rfqId])
+  @@map("attachments")
+}
+
+model Activity {
+  id        String       @id @default(uuid())
+  rfqId     String       @map("rfq_id")
+  actorId   String?      @map("actor_id")
+  type      ActivityType
+  message   String
+  meta      Json?
+  createdAt DateTime     @default(now()) @map("created_at")
+
+  rfq   Rfq   @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  actor User? @relation(fields: [actorId], references: [id])
+
+  @@index([rfqId])
+  @@map("activities")
+}
+
+model DelayHistory {
+  id          String      @id @default(uuid())
+  rfqId       String      @map("rfq_id")
+  pendingWith PendingWith @map("pending_with")
+  startedAt   DateTime    @map("started_at")
+  endedAt     DateTime?   @map("ended_at")
+  // effective business-minutes for the closed segment (null while open)
+  effectiveMins Int?      @map("effective_mins")
+
+  rfq Rfq @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+
+  @@index([rfqId])
+  @@map("delay_history")
+}
+
+model StatusHistory {
+  id        String    @id @default(uuid())
+  rfqId     String    @map("rfq_id")
+  fromStatus RfqStatus? @map("from_status")
+  toStatus   RfqStatus  @map("to_status")
+  changedById String?  @map("changed_by_id")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  rfq Rfq @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+
+  @@index([rfqId])
+  @@map("status_history")
+}
+
+model EmailThread {
+  id        String   @id @default(uuid())
+  rfqId     String   @map("rfq_id")
+  gmailMessageId String @map("gmail_message_id")
+  direction String   @default("INBOUND") // INBOUND | OUTBOUND
+  fromAddr  String?  @map("from_addr")
+  toAddr    String?  @map("to_addr")
+  subject   String?
+  body      String?
+  snippet   String?
+  internalDate DateTime? @map("internal_date")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  rfq Rfq @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+
+  @@index([rfqId])
+  @@map("email_threads")
+}
+
+// ---------- AI & Historical learning ----------
+
+model AiRecommendation {
+  id        String   @id @default(uuid())
+  rfqId     String   @map("rfq_id")
+  kind      String   @default("BUDGETARY_OFFER") // BUDGETARY_OFFER | SUMMARY | FOLLOWUP | DUPLICATE
+  payload   Json     // structured recommendation
+  confidence Float?
+  model     String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  rfq Rfq @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+
+  @@index([rfqId])
+  @@map("ai_recommendations")
+}
+
+model AiPromptLog {
+  id          String   @id @default(uuid())
+  rfqId       String?  @map("rfq_id")
+  userId      String?  @map("user_id")
+  feature     String   // EMAIL_PARSE | DELAY | SUMMARY | BUDGETARY_OFFER | ...
+  prompt      String
+  response    String?
+  tokensIn    Int?     @map("tokens_in")
+  tokensOut   Int?     @map("tokens_out")
+  executionMs Int?     @map("execution_ms")
+  success     Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([feature])
+  @@index([rfqId])
+  @@index([createdAt])
+  @@map("ai_prompt_logs")
+}
+
+// Knowledge base of completed RFQs / quotations. Auto-captured on WON/LOST.
+model Quotation {
+  id            String   @id @default(uuid())
+  rfqId         String?  @map("rfq_id")
+  organizationId String? @map("organization_id")
+  customerName  String?  @map("customer_name")
+  partnerName   String?  @map("partner_name")
+  service       String?
+  services      String[] @default([])
+  supplierName  String?  @map("supplier_name")  // winning supplier
+  country       String?
+  countries     String[] @default([])
+  locations     String[] @default([])
+  capacity      String?
+  technology    String?
+  finalPrice    Decimal? @db.Decimal(14, 2) @map("final_price")
+  currency      String?  @default("USD")
+  deliveryWeeks Int?     @map("delivery_weeks")
+  leadTimeDays  Int?     @map("lead_time_days")
+  marginPct     Float?   @map("margin_pct")
+  internalNotes String?  @map("internal_notes")
+  outcome       String?  // WON | LOST
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  rfq Rfq? @relation(fields: [rfqId], references: [id], onDelete: SetNull)
+
+  @@index([service])
+  @@index([supplierName])
+  @@index([customerName])
+  @@index([rfqId])
+  @@map("quotations")
+}
+
+model DelayCache {
+  id         String   @id @default(uuid())
+  cacheKey   String   @unique @map("cache_key") // start|end|country
+  businessDays Int    @map("business_days")
+  weekendDays Int     @map("weekend_days")
+  holidayDays Int     @map("holiday_days")
+  effectiveDelayDays Int @map("effective_delay_days")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@map("delay_cache")
+}
+
+// ---------- Ops ----------
+
+model Setting {
+  id             String   @id @default(uuid())
+  organizationId String   @map("organization_id")
+  key            String
+  value          Json
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@unique([organizationId, key])
+  @@map("settings")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  title     String
+  body      String?
+  link      String?
+  isRead    Boolean  @default(false) @map("is_read")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@map("notifications")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  actorId    String?  @map("actor_id")
+  entity     String   // e.g. "Rfq"
+  entityId   String   @map("entity_id")
+  action     String   // CREATE | UPDATE | DELETE | LOGIN | ...
+  before     Json?
+  after      Json?
+  ip         String?
+  userAgent  String?  @map("user_agent")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  actor User? @relation(fields: [actorId], references: [id])
+
+  @@index([entity, entityId])
+  @@index([actorId])
+  @@map("audit_logs")
+}
