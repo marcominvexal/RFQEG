@@ -3,15 +3,21 @@ import path from "node:path";
 import bcrypt from "bcryptjs";
 import { prisma } from "../src/lib/prisma";
 import { SERVICES, PARTNERS, DEFAULT_ORG } from "../src/lib/constants";
+import { blobEnabled, DB_PATH } from "../src/lib/blob-storage";
+import { del } from "@vercel/blob";
+import { _resetForTests } from "../src/lib/jsondb";
 
-async function main() {
-  // `--reset` wipes the JSON database before seeding.
-  if (process.argv.includes("--reset")) {
+export async function runSeed(options: { reset?: boolean } = {}) {
+  if (options.reset) {
     const file = path.resolve(process.cwd(), process.env.DB_FILE || "database.json");
     if (fs.existsSync(file)) {
       fs.rmSync(file);
       console.log(`Reset: removed ${file}`);
     }
+    if (blobEnabled()) {
+      await del(DB_PATH).catch(() => {});
+    }
+    _resetForTests();
   }
   console.log("Seeding…");
 
@@ -288,11 +294,13 @@ async function main() {
   console.log("  Presales -> presales@invexal.com / presales123");
 }
 
-main()
-  .catch((e) => {
-    console.error(e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+if (process.argv[1]?.includes("seed")) {
+  runSeed({ reset: process.argv.includes("--reset") })
+    .catch((e) => {
+      console.error(e);
+      process.exit(1);
+    })
+    .finally(async () => {
+      await prisma.$disconnect();
+    });
+}

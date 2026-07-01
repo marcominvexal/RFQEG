@@ -1,11 +1,12 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
-
-/**
- * Object-storage abstraction. Default adapter writes to the local filesystem
- * (./storage). Swap `save/read/remove` for S3/MinIO without touching callers.
- */
+import {
+  attachmentPath,
+  blobEnabled,
+  readBytes,
+  writeBytes,
+} from "@/lib/blob-storage";
 
 const ROOT = path.resolve(process.cwd(), process.env.STORAGE_DIR || "storage");
 
@@ -13,22 +14,35 @@ function safeName(name: string): string {
   return name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 160);
 }
 
-/** Build a deterministic-ish storage key for an attachment. */
 export function buildKey(orgId: string, rfqId: string, fileName: string): string {
   return `${orgId}/${rfqId}/${crypto.randomUUID()}-${safeName(fileName)}`;
 }
 
 export async function saveObject(key: string, data: Buffer): Promise<void> {
+  if (blobEnabled()) {
+    await writeBytes(attachmentPath(key), data, "application/octet-stream");
+    return;
+  }
   const full = path.join(ROOT, key);
   await fs.mkdir(path.dirname(full), { recursive: true });
   await fs.writeFile(full, data);
 }
 
 export async function readObject(key: string): Promise<Buffer> {
+  if (blobEnabled()) {
+    const buf = await readBytes(attachmentPath(key));
+    if (!buf) throw new Error(`Attachment not found: ${key}`);
+    return buf;
+  }
   return fs.readFile(path.join(ROOT, key));
 }
 
 export async function removeObject(key: string): Promise<void> {
+  if (blobEnabled()) {
+    const { del } = await import("@vercel/blob");
+    await del(attachmentPath(key)).catch(() => {});
+    return;
+  }
   await fs.unlink(path.join(ROOT, key)).catch(() => {});
 }
 

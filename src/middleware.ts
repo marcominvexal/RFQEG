@@ -6,10 +6,11 @@ const PUBLIC_PATHS = ["/login"];
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // Allow public assets, auth API, and the Gmail OAuth callback.
+  // Allow public assets, auth API, setup seed, and the Gmail OAuth callback.
   if (
     pathname.startsWith("/_next") ||
     pathname.startsWith("/api/auth") ||
+    pathname.startsWith("/api/setup") ||
     pathname.startsWith("/api/gmail") ||
     pathname === "/favicon.ico" ||
     PUBLIC_PATHS.some((p) => pathname.startsWith(p))

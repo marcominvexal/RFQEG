@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { getCollection, scheduleWrite } from "@/lib/jsondb";
+import { ensureDatabaseReady, getCollection, scheduleWrite } from "@/lib/jsondb";
 
 /**
  * Prisma-compatible facade over the JSON-file engine (`jsondb`).
@@ -260,49 +260,69 @@ function DATE_HAS_CREATED(coll: string): boolean {
 // ---------------- model API ----------------
 
 function modelApi(coll: string) {
+  const ready = async <T>(fn: () => T | Promise<T>): Promise<T> => {
+    await ensureDatabaseReady();
+    return fn();
+  };
+
   return {
     async findUnique(args: any) {
+      return ready(() => {
       const where = expandWhere(args?.where);
       const rec = getCollection(coll).find((r) => matchWhere(coll, r, where));
       return rec ? output(coll, rec, args) : null;
+      });
     },
     async findFirst(args: any = {}) {
+      return ready(() => {
       let arr = getCollection(coll).filter((r) => matchWhere(coll, r, expandWhere(args.where)));
       if (args.orderBy) arr = orderBy(arr, args.orderBy);
       const rec = arr[0];
       return rec ? output(coll, rec, args) : null;
+      });
     },
     async findMany(args: any = {}) {
+      return ready(() => {
       let arr = getCollection(coll).filter((r) => matchWhere(coll, r, expandWhere(args.where)));
       if (args.orderBy) arr = orderBy(arr, args.orderBy);
       if (typeof args.skip === "number") arr = arr.slice(args.skip);
       if (typeof args.take === "number") arr = arr.slice(0, args.take);
       return arr.map((r) => output(coll, r, args));
+      });
     },
     async count(args: any = {}) {
-      return getCollection(coll).filter((r) => matchWhere(coll, r, expandWhere(args.where))).length;
+      return ready(() =>
+        getCollection(coll).filter((r) => matchWhere(coll, r, expandWhere(args.where))).length
+      );
     },
     async create(args: any) {
+      return ready(async () => {
       const rec = buildCreate(coll, args.data);
       getCollection(coll).push(rec);
       await scheduleWrite();
       return output(coll, rec, args);
+      });
     },
     async createMany(args: any) {
+      return ready(async () => {
       const rows = (args.data as any[]).map((d) => buildCreate(coll, d));
       getCollection(coll).push(...rows);
       await scheduleWrite();
       return { count: rows.length };
+      });
     },
     async update(args: any) {
+      return ready(async () => {
       const where = expandWhere(args.where);
       const rec = getCollection(coll).find((r) => matchWhere(coll, r, where));
       if (!rec) throw new Error(`update: ${coll} record not found`);
       applyData(coll, rec, args.data);
       await scheduleWrite();
       return output(coll, rec, args);
+      });
     },
     async upsert(args: any) {
+      return ready(async () => {
       const where = expandWhere(args.where);
       const rec = getCollection(coll).find((r) => matchWhere(coll, r, where));
       if (rec) {
@@ -314,8 +334,10 @@ function modelApi(coll: string) {
       getCollection(coll).push(created);
       await scheduleWrite();
       return output(coll, created, args);
+      });
     },
     async delete(args: any) {
+      return ready(async () => {
       const where = expandWhere(args.where);
       const list = getCollection(coll);
       const idx = list.findIndex((r) => matchWhere(coll, r, where));
@@ -323,6 +345,7 @@ function modelApi(coll: string) {
       const [removed] = list.splice(idx, 1);
       await scheduleWrite();
       return output(coll, removed, args);
+      });
     },
   };
 }
