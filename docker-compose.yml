@@ -1,0 +1,18 @@
+services:
+  rfq:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      HOSTNAME: 0.0.0.0
+      PORT: 3000
+      DB_FILE: /data/database.json
+      STORAGE_DIR: /data/storage
+    volumes:
+      - rfq-data:/data
+
+volumes:
+  rfq-data:

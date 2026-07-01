@@ -1,0 +1,12 @@
+node_modules
+.next
+.git
+.env
+.env.*
+!.env.example
+database.json
+backups
+storage/*
+!storage/.gitkeep
+npm-debug.log*
+.DS_Store
