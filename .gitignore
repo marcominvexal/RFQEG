@@ -38,3 +38,5 @@ yarn-error.log*
 # token/cache files
 /.cache
 gmail-token.json
+.vercel
+.env*

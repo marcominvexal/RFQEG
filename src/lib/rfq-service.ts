@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { computeLiveDelays, changePendingWith, deriveDeadline } from "@/lib/delay-engine";
 import { logActivity } from "@/lib/audit";
 import { captureCompletedRfq, isTerminalOutcome } from "@/lib/knowledge-base";
-import { PRESALES_EDITABLE_FIELDS } from "@/lib/constants";
+import { PRESALES_EDITABLE_FIELDS, SALES_ONLY_FIELDS } from "@/lib/constants";
 import type { AuthUser } from "@/types";
 
 export interface RfqFilters {
@@ -97,12 +97,10 @@ export async function getRfq(user: AuthUser, id: string) {
   return { ...r, ...delays };
 }
 
-const SALES_ONLY = new Set([
-  "partnerName", "partnerId", "customerName", "customerId", "expectedProposalDate",
-  "status", "services", "capacity", "bandwidth", "priority", "assignedToId",
-  "aiOfferEnabled", "opportunityNo", "protection", "remarks", "specialInstructions",
-  "title", "countries", "locations",
-]);
+// Every field a PATCH is allowed to touch, regardless of role. Anything
+// outside this set (organizationId, id, delay counters, deletedAt, ...) is
+// rejected before the role-specific check below even runs.
+const ALL_EDITABLE_FIELDS = new Set<string>([...SALES_ONLY_FIELDS, ...PRESALES_EDITABLE_FIELDS]);
 
 /**
  * Update an RFQ with role-based field authorization + full timeline logging.
@@ -119,13 +117,14 @@ export async function updateRfq(
 
   // Authorize each field.
   for (const key of Object.keys(patch)) {
-    if (user.role === "PRESALES") {
-      if (!PRESALES_EDITABLE_FIELDS.includes(key as any)) {
-        throw new Error(`Presales cannot edit field: ${key}`);
-      }
-    }
     // Deadline is never directly editable.
     if (key === "deadline") throw new Error("Deadline is derived and cannot be edited");
+    if (!ALL_EDITABLE_FIELDS.has(key)) {
+      throw new Error(`Cannot edit field: ${key}`);
+    }
+    if (user.role === "PRESALES" && !PRESALES_EDITABLE_FIELDS.includes(key as any)) {
+      throw new Error(`Presales cannot edit field: ${key}`);
+    }
   }
 
   const data: Record<string, any> = {};
