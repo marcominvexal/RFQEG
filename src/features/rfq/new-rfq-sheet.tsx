@@ -4,9 +4,15 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Plus, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
 import { api } from "@/lib/api-client";
 import { useSettings } from "@/hooks/useRfqs";
+import {
+  PROTECTION_VALUES,
+  LAST_MILE_PROTECTION_DEFAULT,
+  WET_SEGMENT_PROTECTION_DEFAULT,
+} from "@/lib/constants";
 
 export function NewRfqSheet() {
   const qc = useQueryClient();
@@ -16,6 +22,8 @@ export function NewRfqSheet() {
   const [form, setForm] = useState({
     title: "", partnerName: "", customerName: "", capacity: "",
     opportunityNo: "", expectedProposalDate: "", services: [] as string[], remarks: "",
+    lastMileProtection: LAST_MILE_PROTECTION_DEFAULT,
+    wetSegmentProtection: WET_SEGMENT_PROTECTION_DEFAULT,
   });
 
   function set<K extends keyof typeof form>(k: K, v: (typeof form)[K]) {
@@ -30,7 +38,7 @@ export function NewRfqSheet() {
       qc.invalidateQueries({ queryKey: ["rfqs"] });
       qc.invalidateQueries({ queryKey: ["dashboard"] });
       setOpen(false);
-      setForm({ title: "", partnerName: "", customerName: "", capacity: "", opportunityNo: "", expectedProposalDate: "", services: [], remarks: "" });
+      setForm({ title: "", partnerName: "", customerName: "", capacity: "", opportunityNo: "", expectedProposalDate: "", services: [], remarks: "", lastMileProtection: LAST_MILE_PROTECTION_DEFAULT, wetSegmentProtection: WET_SEGMENT_PROTECTION_DEFAULT });
     } finally {
       setLoading(false);
     }
@@ -61,6 +69,20 @@ export function NewRfqSheet() {
           <div className="grid grid-cols-2 gap-3">
             <Field label="Capacity"><Input value={form.capacity} onChange={(e) => set("capacity", e.target.value)} placeholder="100 Mbps" /></Field>
             <Field label="Opportunity No"><Input value={form.opportunityNo} onChange={(e) => set("opportunityNo", e.target.value)} /></Field>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Last Mile Protection">
+              <Select className="w-full" value={form.lastMileProtection} onChange={(e) => set("lastMileProtection", e.target.value)}>
+                {PROTECTION_VALUES.map((v) => <option key={v} value={v}>{v}</option>)}
+              </Select>
+              <p className="mt-1 text-xs text-muted-foreground">Default Unprotected unless explicitly protected.</p>
+            </Field>
+            <Field label="Wet Segment Protection">
+              <Select className="w-full" value={form.wetSegmentProtection} onChange={(e) => set("wetSegmentProtection", e.target.value)}>
+                {PROTECTION_VALUES.map((v) => <option key={v} value={v}>{v}</option>)}
+              </Select>
+              <p className="mt-1 text-xs text-muted-foreground">Protection status only, not media type. Default N/A.</p>
+            </Field>
           </div>
           <Field label="Expected Proposal Date">
             <Input type="date" value={form.expectedProposalDate} onChange={(e) => set("expectedProposalDate", e.target.value)} />

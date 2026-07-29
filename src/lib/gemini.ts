@@ -1,7 +1,42 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { prisma } from "@/lib/prisma";
 import { naiveBusinessDays } from "@/lib/business-days";
+import {
+  PROTECTION_VALUES,
+  LAST_MILE_PROTECTION_DEFAULT,
+  WET_SEGMENT_PROTECTION_DEFAULT,
+} from "@/lib/constants";
 import type { ExtractedRfq, DelayResult, BudgetaryOffer } from "@/types";
+
+/**
+ * Coerce a protection value to one of Protected/Unprotected/N/A, falling back to
+ * the supplied default. Enforces the rule that connectivity is only "Protected"
+ * when a request explicitly says so — anything else becomes the default.
+ */
+function coerceProtection(value: unknown, fallback: string): string {
+  if (typeof value === "string") {
+    const match = PROTECTION_VALUES.find(
+      (v) => v.toLowerCase() === value.trim().toLowerCase()
+    );
+    if (match) return match;
+  }
+  return fallback;
+}
+
+/** Normalize the two protection fields on an extracted RFQ to enforce defaults. */
+function normalizeProtection(rfq: ExtractedRfq): ExtractedRfq {
+  return {
+    ...rfq,
+    lastMileProtection: coerceProtection(
+      rfq.lastMileProtection,
+      LAST_MILE_PROTECTION_DEFAULT
+    ),
+    wetSegmentProtection: coerceProtection(
+      rfq.wetSegmentProtection,
+      WET_SEGMENT_PROTECTION_DEFAULT
+    ),
+  };
+}
 
 export { naiveBusinessDays };
 
@@ -107,10 +142,23 @@ Fields (exact keys):
   "locations": string[]|null,
   "countries": string[]|null,
   "service": string[]|null,
-  "protection": string|null,
+  "lastMileProtection": "Protected"|"Unprotected"|"N/A",
+  "wetSegmentProtection": "Protected"|"Unprotected"|"N/A",
   "remarks": string|null,
   "specialInstructions": string|null
 }
+
+PROTECTION RULES (apply strictly):
+- Connectivity is NEVER assumed to be protected. Treat every segment as
+  UNPROTECTED unless the request EXPLICITLY states it is "protected"
+  (e.g. "protected", "1+1", "with protection", "diverse/redundant path").
+- 🛡️ lastMileProtection — exactly "Protected", "Unprotected", or "N/A".
+  Default: "Unprotected" (use it whenever protection is not explicitly stated).
+- 🛡️ wetSegmentProtection — exactly "Protected", "Unprotected", or "N/A".
+  Default: "N/A". This is protection STATUS only — it is NOT the fiber/wireless
+  media type. Only set "Protected"/"Unprotected" when the wet (subsea) segment
+  protection is explicitly discussed; otherwise use "N/A".
+- Never output null for these two fields — always fall back to the default above.
 
 EMAIL SUBJECT: ${subject}
 EMAIL BODY:
@@ -118,11 +166,14 @@ ${body}`;
 
   const parsed = await generateJson<ExtractedRfq>("EMAIL_PARSE", prompt);
   return (
-    parsed ?? {
-      partner: null, customer: null, opportunityNo: null, capacity: null,
-      bandwidth: null, locations: null, countries: null, service: null,
-      protection: null, remarks: null, specialInstructions: null,
-    }
+    normalizeProtection(
+      parsed ?? {
+        partner: null, customer: null, opportunityNo: null, capacity: null,
+        bandwidth: null, locations: null, countries: null, service: null,
+        lastMileProtection: null, wetSegmentProtection: null,
+        remarks: null, specialInstructions: null,
+      }
+    )
   );
 }
 

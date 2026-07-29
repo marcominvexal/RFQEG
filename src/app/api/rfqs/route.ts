@@ -6,6 +6,11 @@ import { listRfqs, nextRfqNumber } from "@/lib/rfq-service";
 import { prisma } from "@/lib/prisma";
 import { deriveDeadline } from "@/lib/delay-engine";
 import { logActivity } from "@/lib/audit";
+import {
+  PROTECTION_VALUES,
+  LAST_MILE_PROTECTION_DEFAULT,
+  WET_SEGMENT_PROTECTION_DEFAULT,
+} from "@/lib/constants";
 
 export async function GET(req: NextRequest) {
   return handle(async () => {
@@ -35,7 +40,8 @@ const createSchema = z.object({
   locations: z.array(z.string()).optional(),
   countries: z.array(z.string()).optional(),
   opportunityNo: z.string().optional().nullable(),
-  protection: z.string().optional().nullable(),
+  lastMileProtection: z.enum(PROTECTION_VALUES).optional().nullable(),
+  wetSegmentProtection: z.enum(PROTECTION_VALUES).optional().nullable(),
   remarks: z.string().optional().nullable(),
   expectedProposalDate: z.string().optional().nullable(),
   priority: z.enum(["LOW", "MEDIUM", "HIGH", "CRITICAL"]).optional(),
@@ -64,7 +70,9 @@ export async function POST(req: NextRequest) {
         locations: d.locations ?? [],
         countries: d.countries ?? [],
         opportunityNo: d.opportunityNo ?? null,
-        protection: d.protection ?? null,
+        // Default: connectivity is Unprotected unless explicitly stated.
+        lastMileProtection: d.lastMileProtection ?? LAST_MILE_PROTECTION_DEFAULT,
+        wetSegmentProtection: d.wetSegmentProtection ?? WET_SEGMENT_PROTECTION_DEFAULT,
         remarks: d.remarks ?? null,
         priority: d.priority ?? "MEDIUM",
         expectedProposalDate: epd,

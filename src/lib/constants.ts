@@ -29,6 +29,12 @@ export const PENDING_WITH = ["SALES", "PRESALES", "SOURCING"] as const;
 
 export const PRIORITIES = ["LOW", "MEDIUM", "HIGH", "CRITICAL"] as const;
 
+// Protection status values. Connectivity is treated as UNPROTECTED by default —
+// a segment is only "Protected" when a request explicitly says so.
+export const PROTECTION_VALUES = ["Protected", "Unprotected", "N/A"] as const;
+export const LAST_MILE_PROTECTION_DEFAULT = "Unprotected";
+export const WET_SEGMENT_PROTECTION_DEFAULT = "N/A";
+
 // Fields Presales may edit. Everything else is read-only for PRESALES role.
 export const PRESALES_EDITABLE_FIELDS = [
   "pendingWith",
@@ -41,7 +47,8 @@ export const SALES_ONLY_FIELDS = [
   "partnerName", "partnerId", "customerName", "customerId",
   "expectedProposalDate", "status", "services", "capacity", "bandwidth",
   "priority", "assignedToId", "aiOfferEnabled", "opportunityNo",
-  "protection", "remarks", "specialInstructions", "title", "countries",
+  "lastMileProtection", "wetSegmentProtection", "remarks",
+  "specialInstructions", "title", "countries",
   "locations",
 ] as const;
 

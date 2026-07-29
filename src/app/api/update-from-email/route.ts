@@ -49,7 +49,8 @@ export async function POST(req: NextRequest) {
           locations: extracted.locations ?? [],
           countries: extracted.countries ?? [],
           services: extracted.service ?? [],
-          protection: extracted.protection,
+          lastMileProtection: extracted.lastMileProtection,
+          wetSegmentProtection: extracted.wetSegmentProtection,
           remarks: extracted.remarks,
           specialInstructions: extracted.specialInstructions,
           requestDate: new Date(), // import date, NOT email date

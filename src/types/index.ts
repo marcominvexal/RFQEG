@@ -84,7 +84,10 @@ export interface ExtractedRfq {
   locations: string[] | null;
   countries: string[] | null;
   service: string[] | null;
-  protection: string | null;
+  // Protection status only (Protected | Unprotected | N/A). Default rule:
+  // connectivity is Unprotected unless a request explicitly says "protected".
+  lastMileProtection: string | null;
+  wetSegmentProtection: string | null;
   remarks: string | null;
   specialInstructions: string | null;
 }

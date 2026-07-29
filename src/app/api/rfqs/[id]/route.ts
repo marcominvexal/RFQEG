@@ -4,7 +4,7 @@ import { requireUser } from "@/lib/auth";
 import { handle, ok, fail } from "@/lib/api";
 import { getRfq, updateRfq } from "@/lib/rfq-service";
 import { audit } from "@/lib/audit";
-import { RFQ_STATUSES, PENDING_WITH, PRIORITIES } from "@/lib/constants";
+import { RFQ_STATUSES, PENDING_WITH, PRIORITIES, PROTECTION_VALUES } from "@/lib/constants";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   return handle(async () => {
@@ -34,7 +34,8 @@ const patchSchema = z
     assignedToId: z.string().nullable().optional(),
     aiOfferEnabled: z.boolean().optional(),
     opportunityNo: z.string().nullable().optional(),
-    protection: z.string().nullable().optional(),
+    lastMileProtection: z.enum(PROTECTION_VALUES).nullable().optional(),
+    wetSegmentProtection: z.enum(PROTECTION_VALUES).nullable().optional(),
     remarks: z.string().nullable().optional(),
     specialInstructions: z.string().nullable().optional(),
     title: z.string().optional(),
