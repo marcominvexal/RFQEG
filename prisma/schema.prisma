@@ -248,7 +248,10 @@ model Rfq {
   locations           String[] @default([])
   countries           String[] @default([])
   opportunityNo       String?  @map("opportunity_no")
-  protection          String?
+  // Protection status only (Protected | Unprotected | N/A).
+  // Connectivity is Unprotected unless explicitly stated protected.
+  lastMileProtection   String? @map("last_mile_protection")
+  wetSegmentProtection String? @map("wet_segment_protection")
   remarks             String?
   specialInstructions String?  @map("special_instructions")
 

@@ -155,7 +155,8 @@ function RfqDetail({ id }: { id: string }) {
         <Detail label="Services" value={rfq.services?.join(", ")} />
         <Detail label="Opportunity No" value={rfq.opportunityNo} />
         <Detail label="Bandwidth" value={rfq.bandwidth} />
-        <Detail label="Protection" value={rfq.protection} />
+        <Detail label="Last Mile Protection" value={rfq.lastMileProtection} />
+        <Detail label="Wet Segment Protection" value={rfq.wetSegmentProtection} />
         <div className="col-span-2"><Detail label="Remarks" value={rfq.remarks} /></div>
       </div>
 
