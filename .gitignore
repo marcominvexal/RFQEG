@@ -40,3 +40,7 @@ yarn-error.log*
 gmail-token.json
 .vercel
 .env*
+
+# Google service account JSON (Funnel Sheets) — never commit
+service_account.json
+**/service_account.json

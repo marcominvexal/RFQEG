@@ -5,7 +5,7 @@ import type { ExtractedRfq, DelayResult, BudgetaryOffer } from "@/types";
 
 export { naiveBusinessDays };
 
-const MODEL = process.env.GEMINI_MODEL || "gemini-2.0-flash";
+const MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 
 function client() {
   const key = process.env.GEMINI_API_KEY;

@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, FileStack, Settings, Network, LogOut, Building2, Truck } from "lucide-react";
+import { LayoutDashboard, FileStack, Settings, Network, LogOut, Building2, Truck, Sheet } from "lucide-react";
 import { motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,7 @@ import { api } from "@/lib/api-client";
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/rfqs", label: "RFQs", icon: FileStack },
+  { href: "/funnel", label: "Funnel", icon: Sheet, salesOnly: true },
   { href: "/partners", label: "Partners", icon: Building2, salesOnly: true },
   { href: "/suppliers", label: "Suppliers", icon: Truck, salesOnly: true },
   { href: "/settings", label: "Settings", icon: Settings, salesOnly: true },
@@ -93,7 +94,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         {/* Mobile bottom nav */}
         <nav className="fixed bottom-0 left-0 right-0 z-40 flex border-t bg-background/95 backdrop-blur-xl md:hidden">
-          {NAV.filter((n) => !n.salesOnly || user?.role === "SALES").slice(0, 4).map((n) => {
+          {NAV.filter((n) => !n.salesOnly || user?.role === "SALES").slice(0, 5).map((n) => {
             const active = pathname.startsWith(n.href);
             return (
               <Link
